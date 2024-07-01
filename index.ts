@@ -1,9 +1,6 @@
 import { AST, Rule, Scope } from "eslint";
 import * as ESTree from "estree";
 
-/** regex for a tagged comment */
-const tagged = /^\s*eslint-no-closure\b/;
-
 /** test if one range is inside another, used to see if variable in scope */
 function isInsideRange(
   outer: [number, number],
@@ -21,24 +18,19 @@ function summarizeVariables(variables: Iterable<Scope.Variable>): string {
   return sortedNames.join(", ");
 }
 
-const noTaggedClosures: Rule.RuleModule = {
+const noClosures: Rule.RuleModule = {
   meta: {
     type: "problem",
     docs: {
-      description:
-        "disallow closing around variables for functions tagged with `eslint-no-closure`",
+      description: "disallow closing around variables in any function",
       category: "Variables",
       recommended: false,
-      url: "https://github.com/erikbrinkman/eslint-plugin-no-closure",
+      url: "https://github.com/tjwds/eslint-plugin-no-closure",
     },
     messages: {
-      noScope: "tagged a function without a scope",
-      reference:
-        "reference to variable {{ variable }} in an `eslint-no-closure` function",
-      function:
-        "function tagged with `eslint-no-closure` closes variables: {{ variables }}",
-      declaration:
-        "declared variable {{ variable }} referenced in an `eslint-no-closure` function",
+      reference: "reference to variable {{ variable }} in function",
+      function: "function closes variables: {{ variables }}",
+      declaration: "declared variable {{ variable }} referenced in a function",
     },
     schema: [
       {
@@ -69,56 +61,12 @@ const noTaggedClosures: Rule.RuleModule = {
       } = {},
     ] = context.options;
 
-    /** return if a node is considered tagged */
-    function isTagged(node: ESTree.Node): boolean {
-      // first we check if any preceeding comments start with the line
-      const comments = sourceCode.getCommentsBefore(node);
-      for (const comment of comments || []) {
-        if (tagged.test(comment.value)) {
-          return true;
-        }
-      }
-
-      // we also scan the source looking for the previous line
-      // NOTE this is necessary for arrow functions and expressions
-      if (node.loc) {
-        const nline = node.loc.start.line;
-        const token = sourceCode.getTokenBefore(node, {
-          includeComments: true,
-          filter(token: AST.Token | ESTree.Comment): boolean {
-            return (
-              token.type === "Line" ||
-              !token.loc ||
-              // NOTE this last part is so we stop early
-              token.loc.end.line + 1 < nline
-            );
-          },
-        }) as AST.Token | ESTree.Comment | null; // TODO this eslint typing is wrong
-        if (
-          token &&
-          token.loc &&
-          token.loc.end.line + 1 === nline &&
-          tagged.test(token.value)
-        ) {
-          return true;
-        }
-      }
-
-      return false;
-    }
-
     /** the generic check function */
     function checkFunction(node: ESTree.Node & Rule.NodeParentExtension): void {
-      if (!isTagged(node)) return;
-
       // get the function scope
       const functionScope = manager.acquire(node);
       const funcRange = node.range;
       if (!functionScope || !funcRange) {
-        context.report({
-          node,
-          messageId: "noScope",
-        });
         return;
       }
 
@@ -196,5 +144,5 @@ const noTaggedClosures: Rule.RuleModule = {
 };
 
 export const rules = {
-  "no-tagged-closures": noTaggedClosures,
+  "no-closures": noClosures,
 };
